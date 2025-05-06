@@ -1,4 +1,4 @@
-Function Show-UninstallRegistry {
+Function Get-UninstallRegistry {
     #The Show-UninstallRegistry searches the registry uninstall keys for a name you specify
     param(
         [Parameter(Mandatory = $true)][string]$NameToFind,
@@ -133,7 +133,7 @@ Function Publish-ActiveSetup {
 
     Set-ItemProperty $($Key) -name "StubPath" -value $ActiveSetupStubPath
     Set-ItemProperty $($Key) -name "Version" -value $VersionNumber
-    Set-ItemProperty $($Key) -name "Locale" -value "*"0
+    Set-ItemProperty $($Key) -name "Locale" -value "*"
 }
 
 Function Set-NetworkAsPrivate {
@@ -202,7 +202,7 @@ Function Invoke-RemoteSCCMActions {
     Invoke-WMIMethod -ComputerName $ComputerName -Namespace root\ccm -Class SMS_CLIENT -Name TriggerSchedule "{00000000-0000-0000-0000-000000000002}"
 }
 
-Export-ModuleMember -Function Show-UninstallRegistry
+Export-ModuleMember -Function Get-UninstallRegistry
 Export-ModuleMember -Function Get-OSArchitecture
 Export-ModuleMember -Function Write-CustomLog
 Export-ModuleMember -Function Get-ADUser_FullName
