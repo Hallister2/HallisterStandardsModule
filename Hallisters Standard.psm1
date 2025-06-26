@@ -111,11 +111,6 @@ function Open-File{
     return OpenFileDialog.filename
 }
 
-function Invoke-AnyKeyToContinue {
-    Write-Host -NoNewline 'Press any key to continue...' -ForegroundColor Yellow
-    $null = Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
-}
-
 Function Publish-ActiveSetup {
     param (
         [Parameter(Mandatory = $true)][string]$ActiveSetupName,
@@ -164,12 +159,19 @@ Function Invoke-FileSystemRepair {
     sfc /scannow
     Write-Host "Starting 2 of 5: DISM Check Health" -ForegroundColor Green
     dism /online /cleanup-image /CheckHealth
-    Write-Host "Starting 2 of 5: DISM Scan Health" -ForegroundColor Green
+    Write-Host "Starting 3 of 5: DISM Scan Health" -ForegroundColor Green
     dism /online /cleanup-image /ScanHealth
-    Write-Host "Starting 2 of 5: DISM Component Cleanup" -ForegroundColor Green
+    Write-Host "Starting 4 of 5: DISM Component Cleanup" -ForegroundColor Green
     dism /online /cleanup-image /startcomponentcleanup
-    Write-Host "Starting 2 of 5: DISM Restore Health" -foregroundColor Green
+    Write-Host "Starting 5 of 5: DISM Restore Health" -foregroundColor Green
     dism /online /cleanup-image /restorehealth
+
+    Write-Host "The file system repair has completed. Please check the logs for any errors." -ForegroundColor Green
+    Write-Host "C:\Windows\Logs\DISM\dism.log" -ForegroundColor Yellow
+    Write-Host "C:\Windows\Logs\CBS\CBS.log" -ForegroundColor Yellow
+    Write-Host "C:\Windows\Logs\SFC\sfc.log" -ForegroundColor Yellow
+    Write-Host "C:\Windows\Logs\SFC\CBS.log" -ForegroundColor Yellow
+    Write-Host "C:\Windows\Logs\SFC\DISM.log" -ForegroundColor Yellow
 }
 
 Function Invoke-SCCMActions {
@@ -188,6 +190,8 @@ Function Invoke-SCCMActions {
         ForEach ($CacheItem in $CacheInfo) {
             $null = $CCMComObject.GetCacheInfo().DeleteCacheElement([string]$($CacheItem.CacheElementID))
         }
+
+        Write-Host "SCCM Cache cleared" -ForegroundColor Green
     }
 
     #Machine policy retrieval & Evaluation Cycle
@@ -199,6 +203,8 @@ Function Invoke-SCCMActions {
     #Software inventory cycle
     Write-Host "Starting Software Inventory Cycle" -ForegroundColor Green
     Start-Process -Wait -Passthru -FilePath "WMIC" -ArgumentList "/namespace:\\root\ccm path sms_client CALL TriggerSchedule '{00000000-0000-0000-0000-000000000002}' /NOINTERACTIVE"
+
+    Write-Host "SCCM actions completed" -ForegroundColor Green
 }
 
 Function Invoke-RemoteSCCMActions {
@@ -214,11 +220,48 @@ Function Invoke-RemoteSCCMActions {
     }
 
     #Machine Policy Evaluation Cycle
+    Write-Host "Starting Machine Policy Evaluation Cycle against $ComputerName" -ForegroundColor Green
     Invoke-WMIMethod -ComputerName $ComputerName -Namespace root\ccm -Class SMS_CLIENT -Name TriggerSchedule "{00000000-0000-0000-0000-000000000022}"
     #Application Deployment Evaluation Cycle
+    Write-Host "Starting Application Deployment Evaluation Cycle against $ComputerName" -ForegroundColor Green
     Invoke-WMIMethod -ComputerName $ComputerName -Namespace root\ccm -Class SMS_CLIENT -Name TriggerSchedule "{00000000-0000-0000-0000-000000000121}"
     #Software Inventory Cycle
+    Write-Host "Starting Software Inventory Cycle against $ComputerName" -ForegroundColor Green
     Invoke-WMIMethod -ComputerName $ComputerName -Namespace root\ccm -Class SMS_CLIENT -Name TriggerSchedule "{00000000-0000-0000-0000-000000000002}"
+
+    Write-Host "SCCM actions completed on $ComputerName" -ForegroundColor Green
+}
+
+Function New-EventLogSource {
+    param (
+        [Parameter(Mandatory = $true)][string]$EventLogName
+    )
+    #set permissions for the event log; read and write to the EventLog key and its subkeys and values.
+    $acl= get-acl -path "HKLM:\SYSTEM\CurrentControlSet\Services\EventLog"
+    $inherit = [system.security.accesscontrol.InheritanceFlags]"ContainerInherit, ObjectInherit"
+    $propagation = [system.security.accesscontrol.PropagationFlags]"None"
+    $rule=new-object system.security.accesscontrol.registryaccessrule "Authenticated Users","FullControl",$inherit,$propagation,"Allow"
+    $acl.addaccessrule($rule)
+    $acl|set-acl
+
+    #create the Event Log
+    $EventLogExists = Get-EventLog -list | Where-Object {$_.logdisplayname -eq $EventLogName}
+
+    if (! $EventLogExists) {
+        Try {
+        Write-Host "Creating '$EventLogName' event log"
+        New-EventLog -LogName $EventLogName -Source $EventLogName -ErrorAction Ignore| Out-Null
+        Write-EventLog -LogName $EventLogName -Source $EventLogName -Message "Creating Event Log $EventLogName" -EventId 0 -EntryType information
+        Write-Host "If you have Event Viewer open, you should probably close and reopen it."
+        Get-EventLog -list
+        } Catch {
+            Write-Host "Error creating event log: $_" -ForegroundColor Red
+        }
+    }
+    else{
+        Write-Host "There is already an '$EventLogName' event log"
+        Write-EventLog -LogName $EventLogName -Source $EventLogName -Message "Hello Event Log $EventLogName" -EventId 0 -EntryType information
+    }
 }
 
 Export-ModuleMember -Function Show-UninstallRegistry
@@ -226,9 +269,9 @@ Export-ModuleMember -Function Get-OSArchitecture
 Export-ModuleMember -Function Write-CustomLog
 Export-ModuleMember -Function Get-ADUser_FullName
 Export-ModuleMember -Function Open-File
-Export-ModuleMember -Function Invoke-AnyKeyToContinue
 Export-ModuleMember -Function Publish-ActiveSetup
 Export-ModuleMember -Function Set-NetworkAsPrivate
 Export-ModuleMember -Function Invoke-FileSystemRepair
 Export-ModuleMember -Function Invoke-SCCMActions
 Export-ModuleMember -Function Invoke-RemoteSCCMActions
+Export-ModuleMember -Function New-EventLogSource
