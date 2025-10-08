@@ -118,6 +118,10 @@ Included Functions:
             Invoke-RemoteSCCMActions -ComputerName $Computer
         }
 
+-Invoke-AddPermissions
+    Description:
+        This function will ask for some information and set permissions accordingly.
+    Usage:
 '
 
 # Minimum version of the PowerShell engine required by this module

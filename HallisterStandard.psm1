@@ -202,6 +202,28 @@ Function Invoke-RemoteSCCMActions {
     Invoke-WMIMethod -ComputerName $ComputerName -Namespace root\ccm -Class SMS_CLIENT -Name TriggerSchedule "{00000000-0000-0000-0000-000000000002}"
 }
 
+Function Invoke-AddPermissions {
+    #NEEDS WORK!!!
+    # Method 2: PowerShell fallback method
+    $folderACL = Get-Acl -Path $folderPath
+    $folderAccessRule = New-Object System.Security.AccessControl.FileSystemAccessRule("Everyone","FullControl","ContainerInherit,ObjectInherit","None","Allow")
+    $folderACL.SetAccessRule($folderAccessRule)
+    Set-Acl -Path $folderPath -AclObject $folderACL
+
+    # Apply to all subdirectories and files
+    Get-ChildItem -Path $folderPath -Recurse | ForEach-Object {
+        try {
+            $itemACL = Get-Acl -Path $_.FullName
+            $itemAccessRule = New-Object System.Security.AccessControl.FileSystemAccessRule("Everyone","FullControl","ContainerInherit,ObjectInherit","None","Allow")
+            $itemACL.SetAccessRule($itemAccessRule)
+            Set-Acl -Path $_.FullName -AclObject $itemACL
+        } catch {
+            Write-Log -message "Failed to set permissions on $($_.FullName): $_" -component "Main" -type "Warning"
+        }
+    }
+    Write-Log -message "Successfully set permissions using PowerShell method" -component "Main" -type "Info"
+}
+
 Export-ModuleMember -Function Get-UninstallRegistry
 Export-ModuleMember -Function Get-OSArchitecture
 Export-ModuleMember -Function Write-CustomLog
