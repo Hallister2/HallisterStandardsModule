@@ -264,26 +264,30 @@ Function New-EventLogSource {
     }
 }
 
-Function Invoke-AddPermissions {
-    #NEEDS WORK!!!
+Function Invoke-ModifyFolderPermissions {
+    param (
+        [Parameter(Mandatory = $true)][string]$FolderPath
+    )
+
     # Method 2: PowerShell fallback method
-    $folderACL = Get-Acl -Path $folderPath
+    $folderACL = Get-Acl -Path $FolderPath
     $folderAccessRule = New-Object System.Security.AccessControl.FileSystemAccessRule("Everyone","FullControl","ContainerInherit,ObjectInherit","None","Allow")
     $folderACL.SetAccessRule($folderAccessRule)
-    Set-Acl -Path $folderPath -AclObject $folderACL
+    Set-Acl -Path $FolderPath -AclObject $folderACL
 
     # Apply to all subdirectories and files
-    Get-ChildItem -Path $folderPath -Recurse | ForEach-Object {
+    Get-ChildItem -Path $FolderPath -Recurse | ForEach-Object {
         try {
+            Write-Host "Setting permissions on $($_.FullName)" -ForegroundColor Green
             $itemACL = Get-Acl -Path $_.FullName
             $itemAccessRule = New-Object System.Security.AccessControl.FileSystemAccessRule("Everyone","FullControl","ContainerInherit,ObjectInherit","None","Allow")
             $itemACL.SetAccessRule($itemAccessRule)
             Set-Acl -Path $_.FullName -AclObject $itemACL
         } catch {
-            Write-Log -message "Failed to set permissions on $($_.FullName): $_" -component "Main" -type "Warning"
+            Write-Host "Failed to set permissions on $($_.FullName): $_" -ForegroundColor Red
         }
     }
-    Write-Log -message "Successfully set permissions using PowerShell method" -component "Main" -type "Info"
+    Write-Host "Successfully set permissions using PowerShell method" -ForegroundColor Green
 }
 
 Export-ModuleMember -Function Get-UninstallRegistry
@@ -297,3 +301,4 @@ Export-ModuleMember -Function Invoke-FileSystemRepair
 Export-ModuleMember -Function Invoke-SCCMActions
 Export-ModuleMember -Function Invoke-RemoteSCCMActions
 Export-ModuleMember -Function New-EventLogSource
+Export-ModuleMember -Function Invoke-ModifyFolderPermissions
