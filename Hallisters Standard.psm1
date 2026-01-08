@@ -122,6 +122,10 @@ Function Publish-ActiveSetup {
     Write-Host "Version: $VersionNumber" -ForegroundColor Green
     Write-Host "StubPath: $ActiveSetupStubPath" -ForegroundColor Green
 
+    if (Test-Path "HKLM:\SOFTWARE\Microsoft\Active Setup\Installed Components\$ActiveSetupUniqueName") {
+        $ActiveSetupVersion = $ActiveSetupVersion + 1
+    }
+
     #Setup ActiveSetup to run at each user login.
     $ParentKey="HKLM:Software\Microsoft\Active Setup\Installed Components"
     $Key=$ParentKey + "\" + $ActiveSetupName
@@ -290,6 +294,53 @@ Function Invoke-ModifyFolderPermissions {
     Write-Host "Successfully set permissions using PowerShell method" -ForegroundColor Green
 }
 
+Function Publish-StartShortcut {
+    param (
+        [string]$StartFolder,
+        [Parameter(Mandatory = $true)][string]$ShortcutLNK,
+        [string]$ShortcutIcon,
+        [Parameter(Mandatory = $true)][string]$ShortcutEXE,
+        [string]$ShortcutArguments
+    )
+    #Sets default values for optional parameters
+    If (!$StartFolder) { $StartFolder = "NEW FOLDER NAME" }
+    If (!$ShortcutIcon) { $ShortcutIcon = "PATH TO ICON" }
+    If (!$ShortcutArguments) { $ShortcutArguments = "SHORTCUT ARGUMENTS" }
+
+    ###Don't Change $StartPath###
+    $StartPath = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs"
+
+    $WshShell = New-Object -ComObject WScript.Shell
+    if ($StartFolder -ne "NEW FOLDER NAME") {
+        #Write-Log -message "Creating shortcut in $StartPath\StartFolder\$ShortcutLNK" -component "Main" -type "Info"
+        if (Test-Path -Path "$StartPath\$StartFolder\$ShortcutLNK") {
+            Write-Log -message "Removing existing duplicate shortcut" -component "Main" -type "Info"
+            Remove-Item -Path "$StartPath\$StartFolder\$ShortcutLNK" -Force
+        }
+        Write-Log -message "Creating Start Menu folder" -component "Main" -type "Info"
+        New-Item -Name $StartFolder -Path $StartPath -ItemType Directory -Force
+        $Shortcut = $WshShell.CreateShortcut("$StartPath\$StartFolder\$ShortcutLNK")
+
+    } else {
+        #Write-Log -message "Creating shortcut in $StartPath\ShortcutLNK" -component "Main" -type "Info"
+        if (Test-Path -Path "$StartPath\$ShortcutLNK") {
+            Write-Log -message "Removing existing duplicate shortcut" -component "Main" -type "Info"
+            Remove-Item -Path "$StartPath\$ShortcutLNK" -Force
+        }
+        $Shortcut = $WshShell.CreateShortcut("$StartPath\$ShortcutLNK")
+    }
+    $Shortcut.TargetPath = $ShortcutEXE
+    if ($ShortcutIcon -ne "PATH TO ICON") {
+        Write-Log -message "Adding icon to shortcut: $ShortcutIcon" -component "Main" -type "Info"
+        $Shortcut.IconLocation = $ShortcutIcon
+    }
+    if ($ShortcutArguments -ne "SHORTCUT ARGUMENTS") {
+        Write-Log -message "Adding arguments to shortcut: $ShortcutArguments" -component "Main" -type "Info"
+        $Shortcut.Arguments = $ShortcutArguments
+    }
+    $Shortcut.Save()
+}
+
 Export-ModuleMember -Function Get-UninstallRegistry
 Export-ModuleMember -Function Get-OSArchitecture
 Export-ModuleMember -Function Write-CustomLog
@@ -302,3 +353,4 @@ Export-ModuleMember -Function Invoke-SCCMActions
 Export-ModuleMember -Function Invoke-RemoteSCCMActions
 Export-ModuleMember -Function New-EventLogSource
 Export-ModuleMember -Function Invoke-ModifyFolderPermissions
+Export-ModuleMember -Function Publish-StartShortcut
